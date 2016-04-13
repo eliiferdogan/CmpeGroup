@@ -1,5 +1,5 @@
 # CMPE 314 Project Group
 
- Elif Erdogan
- Inanc Gurkan
+ Elif Erdogan\n
+ Inanc Gurkan\n
  Meveddet Erturk
