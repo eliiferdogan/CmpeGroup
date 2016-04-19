@@ -87,3 +87,52 @@
 (test (parse '(+ x x))(plusC (idC 'x)(idC 'x)))
 (test (parse '(* x x))(multC (idC 'x)(idC 'x)))
 (test (parse '(f (* x x)))(appC 'f (multC (idC 'x)(idC 'x))))
+
+
+;Contract
+;;symbol (list of func definitions)-> : FunDefC
+;Purpose
+;; it takes a symobol and generate a function definition.
+
+(fdC 'double  '(x , y) (plusC (idC  'x) (idC  'y)))
+;(fdC 'triple  'x (plusC (plusC (idC  'x) (idC  'x)) (idC 'x)))
+
+   (define (get-fundef [n : symbol] [fds : (listof FunDefC)]) : FunDefC
+   (cond
+     [(empty? fds) (error 'get-fundef "reference to undefined function")]
+     [(cons? fds) (cond
+                    [(equal? n (fdC-name (first fds))) (first fds)]
+                    [else (get-fundef n (rest fds))])]))
+ 
+
+ ;Contract
+; Example of how substitution currently works
+; (subst (plusC (numC 1) (numC 2))
+;        'x
+;        (plusC (idC 'x) (idC 'x)))
+; =>
+; (plusC (plusC (numC 1) (numC 2))
+;        (plusC (numC 1) (numC 2)))
+; i.e. Argument evaluation is deferred
+; so it means our substitution has lazy semantics
+    (define (subst [what : (listof ExprC)] [for : (listof symbol)] [in : ExprC]) : ExprC
+     (type-case ExprC in
+     [numC (n) in]
+     [idC (s) (cond
+              [(symbol=? s for) what]
+              [else in])]
+     [appC (f a) (appC f (subst what for a))]
+     [plusC (l r) (plusC (subst what for l)
+                         (subst what for r))]
+ 
+     [subC (l r) (plusC (subst what for l)
+                         (subst what for r))]
+     [multC (l r) (multC (subst what for l)
+                         (subst what for r))]
+     [factaccC (x fact) (factaccC (subst what for x) (subst what for fact))]
+     [factC (x) (factC (subst what for x))]
+     [igz (exp1 exp2 exp3) (igz (subst what for exp1) (subst what for exp2) (subst what for exp3))]))
+ ;Tests for substitution
+ (test (subst(numC 7) 'x (plusC (plusC (idC  'x) (idC  'x)) (idC 'x))) (plusC (plusC (numC 7) (numC 7)) (numC 7)))
+ (test (subst(plusC (numC 3) (numC 4)) 'y (plusC (multC (idC  'y) (idC  'y)) (idC 'y))) (plusC (multC (plusC (numC 3) (numC 4)) (plusC (numC 3) (numC 4))) (plusC (numC 3) (numC 4))))
+ ;(test (subst(numC 7 ,numC 8) '(x , y) (plusC (plusC (idC  'x) (idC  'y)) (idC 'x))) (plusC (plusC (numC 7) (numC 8)) (numC 7)))
