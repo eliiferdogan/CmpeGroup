@@ -69,3 +69,73 @@
 (test (parse (unparse (λ-app (λ-var 'x) (λ-var 'y)))) (λ-app (λ-var 'x) (λ-var 'y)))
 (test (parse (unparse (λ-fnc 'x (λ-var 'y)))) (λ-fnc 'x (λ-var 'y)))
 (test (parse (unparse (λ-app (λ-fnc 'x (λ-var 'y)) (λ-app (λ-var 'x) (λ-var 'y))))) (λ-app (λ-fnc 'x (λ-var 'y)) (λ-app (λ-var 'x) (λ-var 'y))))
+
+;; Free Variables
+;; getFreeVariables : λ -> (listof symbol)
+;; Examples
+;; (λ-var 'x) -> {x}
+;; (λ-fnc 'x (λ-var 'x)) -> {}
+;; (λ-fnc 'x (λ-var 'y)) -> {y}
+;; (λ-fnc 'x (λ-fnc 'y (λ-var 'x))) -> {}
+;; (λ-fnc 'x (λ-fnc 'y (λ-var 'z))) -> {z}
+;; (λ-app (λ-var 'x) (λ-var 'y)) -> {'x 'y}
+;; Template
+;;(define (getFreeVariables [lmbd : λ]) : (listof symbol)
+;;  (type-case λ lmbd
+;;    [λ-var (name) (cons...name)]
+;;    [λ-fnc (name expr) (if (member ...name ...expr) ...empty (cons...name))]
+;;    [λ-app (lhs rhs) (append ...lhs ...rhs)]))
+(define (getFreeVariables [lmbd : λ]) : (listof symbol)
+  (type-case λ lmbd
+    [λ-var (name) (cons name empty)]
+    [λ-fnc (name expr) (if (member name (getFreeVariables (λ-fnc-expr lmbd))) (removeElement name (getFreeVariables (λ-fnc-expr lmbd)) empty) (getFreeVariables (λ-fnc-expr lmbd)))]
+    [λ-app (lhs rhs) (uniqueAppend (getFreeVariables lhs) (getFreeVariables rhs))]))
+
+;; removeElement : (listof symbol) -> symbol
+;; Remove element from list if exists
+;; Examples
+;; { } 'x -> {}
+;; {'x} 'x -> {}
+;; {'x 'y} 'x -> {'y}
+;; {'x 'y} 'z -> {'x 'y}
+;; Template
+;;(define (removeElement [elem : symbol] [l : (listof symbol)] [cur : (listof symbol)]) : (listof symbol)
+;;  (cond
+;;    [(empty? l) ...cur]
+;;    [else (if (equal? (first l) elem ) ... ...)]
+;;    ))
+(define (removeElement [elem : symbol] [l : (listof symbol)] [cur : (listof symbol)]) : (listof symbol)
+  (cond
+    [(empty? l) cur]
+    [else (if (equal? (first l) elem) (removeElement elem (rest l) cur) (removeElement elem (rest l) (cons (first l) cur)) )]
+    ))
+
+;; uniqueAppend : (listof symbol) (listof symbol) -> (listof symbol)
+;; Append two lists' unique elements
+;; Examples
+;; {'x 'y} {'x 'y} -> {'x 'y}
+;; {'a} { } -> {'a}
+;;(define (uniqueAppend [l1 : (listof symbol)] [l2 : (listof symbol)]) : (listof symbol)
+;;  (cond
+;;    [(empty? l1) ...l2]
+;;    [else (uniqueAppend ...(rest l1) ...l2)]
+;;    ))
+(define (uniqueAppend [l1 : (listof symbol)] [l2 : (listof symbol)]) : (listof symbol)
+  (cond
+    [(empty? l1) l2]
+    [else (uniqueAppend (rest l1) (append (removeElement (first l1) l2 empty) (list (first l1))))]
+    ))
+
+(test (uniqueAppend (list 'x 'y) (list 'x 'y)) (list 'x 'y))
+(test (uniqueAppend (list 'a 'y) (list 'x 'y)) (list 'a 'x 'y))
+(test (uniqueAppend (list 'a) (list )) (list 'a))
+
+(test (removeElement 'x (list 'y) empty) (list 'y))
+(test (removeElement 'x (list 'x 'y) empty) (list 'y))
+(test (removeElement 'x empty empty) empty)
+(test (removeElement 'x (list 'x) empty) empty)
+
+(test (getFreeVariables (λ-fnc 'x (λ-var 'x))) empty)
+(test (getFreeVariables (λ-fnc 'x (λ-var 'y))) (list 'y))
+(test (getFreeVariables (λ-fnc 'x (λ-fnc 'y (λ-var 'x)))) empty)
+(test (getFreeVariables (λ-fnc 'x (λ-fnc 'y (λ-var 'z)))) (list 'z))
