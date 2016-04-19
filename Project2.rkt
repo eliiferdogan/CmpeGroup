@@ -163,6 +163,35 @@
     )
   )
 
+;; Leftmost Beta Reduction
+;; leftmostBetaReduction : λ -> λ
+;; Examples (in Lambda Calculus form)
+;; x -> x
+;; (λx x) -> (λx x)
+;; ( ((λx x) (λy y)) ((λx x) (y y)) ) -> ( (λy y) ((λx x) (y y)) )
+;; Template
+;;(define (leftmostBetaReduction [l : λ]) : λ
+;;  (type-case λ l
+;;    [λ-var (name) ...l]
+;;    [λ-fnc (name expr) ...l]
+;;    [λ-app (lhs rhs) (if
+;;                      (λ-fnc? (λ-app-lhs a))
+;;                      (betaReduction ...a)
+;;                      (λ-app ...lhs ...(leftmostBetaReduction ...rhs)))]
+;;    ))
+(define (leftmostBetaReduction [l : λ]) : λ
+  (type-case λ l
+    [λ-var (name) l]
+    [λ-fnc (name expr) l]
+    [λ-app (lhs rhs) (if
+                      (λ-fnc? (λ-app-lhs lhs))
+                      (λ-app (betaReduction lhs) rhs)
+                      (λ-app lhs (leftmostBetaReduction rhs)))]
+    ))
+(test (leftmostBetaReduction (λ-var 'x)) (λ-var 'x))
+(test (leftmostBetaReduction (λ-fnc 'x (λ-var 'x))) (λ-fnc 'x (λ-var 'x)))
+(test (leftmostBetaReduction (λ-app (λ-app (λ-fnc 'x (λ-var 'x)) (λ-fnc 'y (λ-var 'y))) (λ-app (λ-fnc 'x (λ-var 'x)) (λ-fnc 'y (λ-var 'y))))) (λ-app (λ-fnc 'y (λ-var 'y)) (λ-app (λ-fnc 'x (λ-var 'x)) (λ-fnc 'y (λ-var 'y)))))
+
 (test (uniqueAppend (list 'x 'y) (list 'x 'y)) (list 'x 'y))
 (test (uniqueAppend (list 'a 'y) (list 'x 'y)) (list 'a 'x 'y))
 (test (uniqueAppend (list 'a) (list )) (list 'a))
