@@ -126,6 +126,43 @@
     [else (uniqueAppend (rest l1) (append (removeElement (first l1) l2 empty) (list (first l1))))]
     ))
 
+;; Beta Reduction
+;; betaReduction : λ-app -> λ
+;; Examples
+;; (λ-app (λ-fnc 'x (λ-var 'x)) (λ-fnc 'y (λ-var 'y))) -> (λ-fnc 'y (λ-var 'y))
+;; (λ-app (λ-fnc 'x (λ-app (λ-var 'x) (λ-var 'x))) (λ-app (λ-var 'y) (λ-var 'y))) -> (λ-app (λ-var 'y) (λ-var 'y))
+(define (betaReduction [lmbd : λ]) : λ
+  (let ([M (λ-app-lhs lmbd)])
+    (let ([N (λ-app-rhs lmbd)])
+        (helperBetaParser (λ-fnc-name M) (λ-fnc-expr M) N)
+      )
+    )
+  )
+
+;; Helper Beta Parser
+;; helperBetaParser : λ λ -> λ
+;; Examples
+;; (λ-var 'x) (λ-fnc 'y (λ-var 'y)) -> (λ-fnc 'y (λ-var 'y))
+;; (λ-app (λ-var 'x) (λ-var 'x)) (λ-app (λ-var 'y) (λ-var 'y)) -> (λ-app (λ-app (λ-var 'y) (λ-var 'y)) (λ-app (λ-var 'y) (λ-var 'y)))
+;; (λ-app (λ-var 'x) (λ-var 'a)) (λ-app (λ-var 'y) (λ-var 'y)) -> (λ-app (λ-app (λ-var 'y) (λ-var 'y)) (λ-var 'a))
+;; Template
+;;(define (helperBetaParser [v : symbol] [M : λ] [N : λ]) : λ
+;;  (let ([v (λ-fnc-name M)])
+;;    (type-case λ (λ-fnc-expr M)
+;;      [λ-var (name) ...N]
+;;      [λ-fnc (name expr) ...N]
+;;      [λ-app (lhs rhs) (λ-app (helperBetaParser ...) (helperBetaParser ...))]
+;;      )
+;;    )
+;;  )
+(define (helperBetaParser [v : symbol] [M : λ] [N : λ]) : λ
+  (type-case λ M
+    [λ-var (name) (if (symbol=? v name) N M)]
+    [λ-fnc (name expr) N]
+    [λ-app (lhs rhs) (λ-app (helperBetaParser v lhs N) (helperBetaParser v rhs N))]
+    )
+  )
+
 (test (uniqueAppend (list 'x 'y) (list 'x 'y)) (list 'x 'y))
 (test (uniqueAppend (list 'a 'y) (list 'x 'y)) (list 'a 'x 'y))
 (test (uniqueAppend (list 'a) (list )) (list 'a))
@@ -139,6 +176,13 @@
 (test (getFreeVariables (λ-fnc 'x (λ-var 'y))) (list 'y))
 (test (getFreeVariables (λ-fnc 'x (λ-fnc 'y (λ-var 'x)))) empty)
 (test (getFreeVariables (λ-fnc 'x (λ-fnc 'y (λ-var 'z)))) (list 'z))
+
+(test (helperBetaParser 'x (λ-var 'x) (λ-fnc 'y (λ-var 'y))) (λ-fnc 'y (λ-var 'y)))
+(test (helperBetaParser 'x (λ-app (λ-var 'x) (λ-var 'x)) (λ-app (λ-var 'y) (λ-var 'y))) (λ-app (λ-app (λ-var 'y) (λ-var 'y)) (λ-app (λ-var 'y) (λ-var 'y))))
+
+(test (betaReduction (λ-app (λ-fnc 'x (λ-var 'x)) (λ-fnc 'y (λ-var 'y)))) (λ-fnc 'y (λ-var 'y)))
+(test (betaReduction (λ-app (λ-fnc 'x (λ-app (λ-var 'x) (λ-var 'x))) (λ-app (λ-var 'y) (λ-var 'y)))) (λ-app (λ-app (λ-var 'y) (λ-var 'y)) (λ-app (λ-var 'y) (λ-var 'y))))
+(test (betaReduction (λ-app (λ-fnc 'x (λ-app (λ-var 'x) (λ-var 'a))) (λ-app (λ-var 'y) (λ-var 'y)))) (λ-app (λ-app (λ-var 'y) (λ-var 'y)) (λ-var 'a)))
 
 ;; Tests - Quiz 5 / Q100
 (test (getFreeVariables (parse '(λ x (λ y (λ z ((λ x (y y)) (λ y (x x)))))))) (list ))
