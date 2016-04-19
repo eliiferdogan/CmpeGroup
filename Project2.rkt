@@ -192,6 +192,44 @@
 (test (leftmostBetaReduction (λ-fnc 'x (λ-var 'x))) (λ-fnc 'x (λ-var 'x)))
 (test (leftmostBetaReduction (λ-app (λ-app (λ-fnc 'x (λ-var 'x)) (λ-fnc 'y (λ-var 'y))) (λ-app (λ-fnc 'x (λ-var 'x)) (λ-fnc 'y (λ-var 'y))))) (λ-app (λ-fnc 'y (λ-var 'y)) (λ-app (λ-fnc 'x (λ-var 'x)) (λ-fnc 'y (λ-var 'y)))))
 
+;; Generic Beta Reduction
+;; genericBetaReduction : λ -> λ
+;; Uses beta reduction in everywhere possible
+;; Examples (in Lambda Calculus form)
+;; x -> x
+;; (λx x) -> (λx x)
+;; ( ((λx x) (λy y)) ((λx x) (z z)) ) -> ( (λy y) (λz z) )
+;; Template
+;;(define genericBetaReduction [l : λ]) : λ
+;;  (type-case λ l
+;;    [λ-var (name) ...l]
+;;    [λ-fnc (name expr) ...l]
+;;    [λ-app (lhs rhs) (cond
+;;                       [(λ-fnc? ...lhs)
+;;                        (if (λ-fnc? ...rhs)
+;;                            (λ-app (betaReduction ...lhs) (betaReduction ...rhs))
+;;                            (λ-app (betaReduction ...lhs) ...rhs))]
+;;                       [(λ-fnc? ...rhs)
+;;                            (λ-app ...lhs (betaReduction ...rhs))]
+;;                       [else ...l])]
+;;    ))
+(define (genericBetaReduction [l : λ]) : λ
+  (type-case λ l
+    [λ-var (name) l]
+    [λ-fnc (name expr) l]
+    [λ-app (lhs rhs) (cond
+                       [(λ-fnc? (λ-app-lhs lhs))
+                        (if (λ-fnc? (λ-app-lhs rhs))
+                            (λ-app (betaReduction lhs) (betaReduction rhs))
+                            (λ-app (betaReduction lhs) rhs))]
+                       [(λ-fnc? (λ-app-lhs rhs))
+                            (λ-app lhs (betaReduction rhs))]
+                       [else l])]
+    ))
+(test (genericBetaReduction (λ-var 'x)) (λ-var 'x))
+(test (genericBetaReduction (λ-fnc 'x (λ-var 'x))) (λ-fnc 'x (λ-var 'x)))
+(test (genericBetaReduction (λ-app (λ-app (λ-fnc 'x (λ-var 'x)) (λ-fnc 'y (λ-var 'y))) (λ-app (λ-fnc 'x (λ-var 'x)) (λ-fnc 'z (λ-var 'z))))) (λ-app (λ-fnc 'y (λ-var 'y)) (λ-fnc 'z (λ-var 'z))) )
+
 (test (uniqueAppend (list 'x 'y) (list 'x 'y)) (list 'x 'y))
 (test (uniqueAppend (list 'a 'y) (list 'x 'y)) (list 'a 'x 'y))
 (test (uniqueAppend (list 'a) (list )) (list 'a))
