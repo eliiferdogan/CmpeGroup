@@ -128,6 +128,7 @@
 
 ;; Beta Reduction
 ;; betaReduction : λ-app -> λ
+;; Performs beta reduction on a λ-app.
 ;; Examples
 ;; (λ-app (λ-fnc 'x (λ-var 'x)) (λ-fnc 'y (λ-var 'y))) -> (λ-fnc 'y (λ-var 'y))
 ;; (λ-app (λ-fnc 'x (λ-app (λ-var 'x) (λ-var 'x))) (λ-app (λ-var 'y) (λ-var 'y))) -> (λ-app (λ-var 'y) (λ-var 'y))
@@ -141,6 +142,7 @@
 
 ;; Helper Beta Parser
 ;; helperBetaParser : λ λ -> λ
+;; Uses the lambda calculus formula ( λv.M[v:=N] ).
 ;; Examples
 ;; (λ-var 'x) (λ-fnc 'y (λ-var 'y)) -> (λ-fnc 'y (λ-var 'y))
 ;; (λ-app (λ-var 'x) (λ-var 'x)) (λ-app (λ-var 'y) (λ-var 'y)) -> (λ-app (λ-app (λ-var 'y) (λ-var 'y)) (λ-app (λ-var 'y) (λ-var 'y)))
@@ -165,6 +167,7 @@
 
 ;; Leftmost Beta Reduction
 ;; leftmostBetaReduction : λ -> λ
+;; Only uses beta reduction on the first one possible(left most).
 ;; Examples (in Lambda Calculus form)
 ;; x -> x
 ;; (λx x) -> (λx x)
