@@ -4,6 +4,10 @@
 ;; Λ -> v
 ;; Λ -> (Λ Λ)
 ;; Λ -> (λ v Λ)
+(define-type λ
+  [λ-var (name : symbol)]
+  [λ-fnc (name : symbol) (expr : λ)]
+  [λ-app (lhs : λ) (rhs : λ)])
 
 ;; parse : s-expression -> λ
 ;; Examples
