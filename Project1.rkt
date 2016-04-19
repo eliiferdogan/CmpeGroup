@@ -136,3 +136,94 @@
  (test (subst(numC 7) 'x (plusC (plusC (idC  'x) (idC  'x)) (idC 'x))) (plusC (plusC (numC 7) (numC 7)) (numC 7)))
  (test (subst(plusC (numC 3) (numC 4)) 'y (plusC (multC (idC  'y) (idC  'y)) (idC 'y))) (plusC (multC (plusC (numC 3) (numC 4)) (plusC (numC 3) (numC 4))) (plusC (numC 3) (numC 4))))
  ;(test (subst(numC 7 ,numC 8) '(x , y) (plusC (plusC (idC  'x) (idC  'y)) (idC 'x))) (plusC (plusC (numC 7) (numC 8)) (numC 7)))
+
+
+;  lookup function takes n as a symbol and environment which includes binding values,
+;  then it checks wheter this funciton in environment or not?
+;  if there is,it produces value otherwise it gives error
+(define (lookup [for : symbol] [env : Env]) : number
+  (cond
+    [(empty? env) (error 'lookup "name not found")]
+    [else (cond
+            [(symbol=? for (bind-name (first env)))
+             (bind-val (first env))]
+            [else (lookup for (rest env))])]))
+
+;Binding
+;this function takes symbol as name and value which is number
+;to bind any funciton
+(define-type Binding
+  [bind (name : symbol) (val : number)])
+
+; An alias to work easily on Environment.
+(define-type-alias Env (listof Binding))
+;Empty enviorenment.
+(define mt-env empty)
+;Extended environment.
+(define extend-env cons)
+
+
+;; Interpreter 
+;; Purpose : To interpreter given expression to value
+;; Template : 
+;  (define (interp [expr : ExprC] [env : Environment]) : number
+;  (type-case
+;    [n ...]
+;    [id ...]
+;    [lam ...]
+;    [ifzero ...]
+;    any function
+;    ))
+(define (interp [expr : ExprC] [env : Env] [fds : (listof FunDefC)]) : number
+  (type-case ExprC expr
+    [numC (n) n]
+    [idC (n) (lookup n env)]
+    [appC (f a) (local ([define fd (get-fundef f fds)])
+                  (interp (fdC-body fd)
+                          (extend-env (bind (fdC-arg fd)
+                                            (interp a env fds))
+                                            mt-env) fds))]
+    [subC (l r) (- (interp l env fds) (interp r env fds))]
+    [plusC (l r) (+ (interp l env fds) (interp r env fds))]
+    [multC (l r) (* (interp l env fds) (interp r env fds))]
+    [factC (x) (cond
+               [(= x 1) 1]
+               [else (* x (interp (factC (- x 1)) env fds))])]
+    [igz (exp1 exp2 exp3)
+             (if (= 0 (interp exp1 env fds))
+                 (interp exp2 env fds)
+                 (interp exp3 env fds))]
+  ;;  [factaccC]
+    [fibC (x) (cond 
+                 [ifzero n 1
+                             (ifzero (- n 1) 1
+                                        (ifzero (- n 2) 1
+                                                (+ (fibC (- n 1))
+                                                   (fibC (- n 2)))))])]
+    ))
+
+
+;Tests of interpreter
+(test (interp (plusC (numC 10) (appC 'const5 (numC 10)))
+              mt-env
+              (list (fdC 'const5 '_ (numC 5))))
+      15)
+ 
+(test (interp (plusC (numC 10) (appC 'double (plusC (numC 1) (numC 2))))
+              mt-env
+              (list (fdC 'double 'x (plusC (idC 'x) (idC 'x)))))
+      16)
+ 
+(test (interp (plusC (numC 10) (appC 'quadruple (plusC (numC 1) (numC 2))))
+              mt-env
+              (list (fdC 'quadruple 'x (appC 'double (appC 'double (idC 'x))))
+                    (fdC 'double 'x (plusC (idC 'x) (idC 'x)))))
+      22)
+
+
+(test (interp (parse '(+ 10 (const5 (10))))
+              mt-env
+              FuncDefNameSpace) 15)
+(test (interp (parse '(+ 10 (double ((+ 1 2)))))
+              mt-env
+              FuncDefNameSpace) 16)
