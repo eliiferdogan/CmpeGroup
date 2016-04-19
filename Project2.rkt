@@ -64,3 +64,8 @@
 (test (unparse (λ-app (λ-var 'x) (λ-var 'y))) '(x y))
 (test (unparse (λ-fnc 'x (λ-var 'y))) '(λ x y))
 (test (unparse (λ-app (λ-fnc 'x (λ-var 'y)) (λ-app (λ-var 'x) (λ-var 'y))))'((λ x y) (x y)))
+;; Parse Unparse Combined Tests
+(test (parse (unparse (λ-var 'x))) (λ-var 'x))
+(test (parse (unparse (λ-app (λ-var 'x) (λ-var 'y)))) (λ-app (λ-var 'x) (λ-var 'y)))
+(test (parse (unparse (λ-fnc 'x (λ-var 'y)))) (λ-fnc 'x (λ-var 'y)))
+(test (parse (unparse (λ-app (λ-fnc 'x (λ-var 'y)) (λ-app (λ-var 'x) (λ-var 'y))))) (λ-app (λ-fnc 'x (λ-var 'y)) (λ-app (λ-var 'x) (λ-var 'y))))
