@@ -86,6 +86,63 @@
                                   (interp (first arg) env fds))
                                   mt-env))]))
 
+;; evalExpression : s-expression -> number
+;; Parses and evaluates s-expression
+;; Examples
+;; '(+ 5 3) -> 8
+;; '(+ 3 4) -> 7
+;; '(+ -3 4) -> 1
+;; '(+ 13 6) -> 19
+;; '(+ -4 -5) -> -9
+;; '(- 5 3) -> 2
+;; '(- 3 4) -> -1
+;; '(- -3 4) -> -7
+;; '(- 13 6) -> 7
+;; '(- -4 -5) -> 1
+;; '(- 5) -> -5
+;; '(- 12) -> -12
+;; '(- 0) -> 0
+;; '(- -5) -> 5
+;; '(- -12) -> 12
+;; '(* 5 3) -> 15
+;; '(* 3 4) -> 12
+;; '(* -3 4) -> -12
+;; '(* 3 6) -> 18
+;; '(* -4 -5) -> 20
+;; '(** 5 3) -> 125
+;; '(** 3 3) -> 27
+;; '(** -3 3) -> -27
+;; '(** -6 2) -> 36
+;; '(** 0 5) -> 0
+;; '(+ 5 (- (* 4 2) (- 3))) -> 16
+;; '(* (** (- 5) 2) (- (+ 1 2))) -> -75
+;; '(* 123 (- (- 5 (- -5)))) -> 0
+;; '(+ (** -5 (- -2)) (- 24)) -> 1
+;; '(- (** 2 5) (+ 4 (** (* 3 (- 5 (- 6))) 1))) -> -5
+;; '(gtz 4 (+ 2 3) (+ 6 4)) -> 5
+;; '(gtz -4 (+ 2 3) (+ 6 4)) -> 10
+;; '(gtz 1 7 (+ 6 4)) -> 7
+;; '(gtz 0 7 (* 6 4)) -> 24
+;; '(fun doublePower 2 4)) -> 32
+;; '(fun doublePower (+ 2 3) 2)) -> 50
+;; '(fun addThreeNumbers (- 2) 3 4)) -> 5
+;; '(fun addThreeNumbers (+ 2 3) (fun doublePower 2 4) (* 5 2))) -> 47
+;; Template
+;; (define (evalExpression [expr : s-expression]) : number
+;;   (let ([sl (s-exp->list expr)])
+;;     (cond
+;;       [(<= ...(length sl) ...) (evalSug ...expr)]
+;;       [else interp ...expr ...funcList])))
+
+(define (evalExpression [expr : s-expression]) : number
+  (let ([sl (s-exp->list expr)])
+    (cond
+      [(<= (length sl) 3) (interp (parse expr) empty empty)]
+      [else
+       (cond
+         [(symbol=? (s-exp->symbol (first sl)) 'gtz) (interp (parse expr) mt-env funcList)])])))
+
+
 ;; takePower : number number -> number
 ;; Takes base to the power of top using accumulator approach.
 ;; Examples
