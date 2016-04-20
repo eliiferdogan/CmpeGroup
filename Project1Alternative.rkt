@@ -294,15 +294,60 @@
                            [else acc])))
 (define factorial (λ (n) (gtzE n (numE (factorialHelper n 1)) (numE 1))))
 
+
 ;;;;;;;;;; TESTS BELOW ;;;;;;;;;;
 ;; NegHelperMyExpr
 (test (negHelperMyExpr (s-exp->list '(- 5 3))) (addE (numE 5) (negE (numE 3))))
 (test (negHelperMyExpr (s-exp->list '(- 5))) (negE (numE 5)))
 
+;;Take Power Tests
+(test (takePowerHelper 5 3 1) 125)
+(test (takePowerHelper 3 2 1) 9)
+(test (takePowerHelper -2 4 1) 16)
+(test (takePowerHelper -2 5 1) -32)
+(test (takePowerHelper 0 4 1) 0)
+(test (takePower 5 3) 125)
+(test (takePower 3 2) 9)
+(test (takePower -2 4) 16)
+(test (takePower -2 5) -32)
+(test (takePower 0 4) 0)
 
-
-
-;; parse Tests
+;; EvalExpression Tests
+(test (evalExpression '(+ 5 3)) 8)
+(test (evalExpression '(+ 3 4)) 7)
+(test (evalExpression '(+ -3 4)) 1)
+(test (evalExpression '(+ 13 6)) 19)
+(test (evalExpression '(+ -4 -5)) -9)
+(test (evalExpression '(- 5 3)) 2)
+(test (evalExpression '(- 3 4)) -1)
+(test (evalExpression '(- -3 4)) -7)
+(test (evalExpression '(- 13 6)) 7)
+(test (evalExpression '(- -4 -5)) 1)
+(test (evalExpression '(- 5)) -5)
+(test (evalExpression '(- 12)) -12)
+(test (evalExpression '(- 0)) 0)
+(test (evalExpression '(- -5)) 5)
+(test (evalExpression '(- -12)) 12)
+(test (evalExpression '(* 5 3)) 15)
+(test (evalExpression '(* 3 4)) 12)
+(test (evalExpression '(* -3 4)) -12)
+(test (evalExpression '(* 3 6)) 18)
+(test (evalExpression '(* -4 -5)) 20)
+(test (evalExpression '(** 5 3)) 125)
+(test (evalExpression '(** 3 3)) 27)
+(test (evalExpression '(** -3 3)) -27)
+(test (evalExpression '(** -6 2)) 36)
+(test (evalExpression '(** 0 5)) 0)
+(test (evalExpression '(+ 5 (- (* 4 2) (- 3)))) 16)
+(test (evalExpression '(* (** (- 5) 2) (- (+ 1 2)))) -75)
+(test (evalExpression '(* 123 (- (- 5 (- -5))))) 0)
+(test (evalExpression '(+ (** -5 (- -2)) (- 24))) 1)
+(test (evalExpression '(- (** 2 5) (+ 4 (** (* 3 (- 5 (- 6))) 1)))) -5)
+;; Subst Tests
+(test (subst (numE 5) 'x (powE (numE 9) (numE 2))) (powE (numE 9) (numE 2)))
+(test (subst (numE 5) 'x (addE (idE 'x) (idE 'x))) (addE (numE 5) (numE 5)))
+(test (subst (numE 4) 'x (mulE (numE 8) (idE 'x))) (mulE (numE 8) (numE 4)))
+;; ParseMyExpr Tests
 (test (parse '5) (numE 5))
 (test (parse '-1) (numE -1))
 (test (parse '(+ 5 3)) (addE (numE 5) (numE 3)))
@@ -315,6 +360,33 @@
 (test (parse '(** 2 6)) (powE (numE 2) (numE 6)))
 (test (parse '(gtz 1 (** 5 3) (** 1 4))) (gtzE 1 (powE (numE 5) (numE 3)) (powE (numE 1) (numE 4))))
 (test (parse '(gtz -1 (** 5 3) (** 1 4))) (gtzE -1 (powE (numE 5) (numE 3)) (powE (numE 1) (numE 4))))
+;; GreaterThanZeroHelper Tests
+(test (greaterThanZeroHelper (numE 1) (numE 5) (numE 7)) (numE 5))
+(test (greaterThanZeroHelper (numE 1) (addE (numE 5) (numE 6)) (numE 7)) (addE (numE 5) (numE 6)))
+(test (greaterThanZeroHelper (numE 0) (addE (numE 5) (numE 6)) (numE 7)) (numE 7))
+(test (greaterThanZeroHelper (numE -1) (numE 5) (numE 8)) (numE 8))
+(test (greaterThanZeroHelper (addE (numE 3) (numE 4)) (numE 1) (numE -1)) (numE 1))
+(test (greaterThanZeroHelper (mulE (numE 0) (numE 23)) (numE 1) (numE -1)) (numE -1))
+;; Interp and GTZ Tests
+(test (interp (numE 5) mt-env funcList) 5)
+(test (interp (numE -5) mt-env funcList) -5)
+(test (interp (appE 'addFunc (list (numE 5) (numE 4))) mt-env funcList) 9)
+(test (interp (addE (numE 5) (numE 6)) mt-env funcList) 11)
+(test (interp (addE (numE -3) (numE 2)) mt-env funcList) -1)
+(test (interp (mulE (numE 5) (numE 6)) mt-env funcList) 30)
+(test (interp (mulE (numE -3) (numE 2)) mt-env funcList) -6)
+(test (interp (negE (numE 5)) mt-env funcList) -5)
+(test (interp (negE (numE -3)) mt-env funcList) 3)
+(test (interp (negE (numE 20)) mt-env funcList) -20)
+(test (interp (powE (numE 4) (numE 2)) mt-env funcList) 16)
+(test (interp (powE (numE -3) (numE 3)) mt-env funcList) -27)
+(test (interp ((λ (x y) (addE (appE 'addFunc (list x y)) y)) (numE 2) (numE 4)) mt-env funcList) 10)
+(test (interp (gtzE 1 (powE (numE 4) (numE 2)) (mulE (numE 5) (numE 6))) mt-env funcList) 16)
+(test (interp (gtzE -1 (powE (numE 4) (numE 2)) (mulE (numE 5) (numE 6))) mt-env funcList) 30)
+(test (evalExpression '(gtz 4 (+ 2 3) (+ 6 4))) 5)
+(test (evalExpression '(gtz -4 (+ 2 3) (+ 6 4))) 10)
+(test (evalExpression '(gtz 1 7 (+ 6 4))) 7)
+(test (evalExpression '(gtz 0 7 (* 6 4))) 24)
 
 
 
