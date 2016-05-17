@@ -1,5 +1,4 @@
 #lang plai-typed
-
 ;; Grammar
 ;; Λ -> v
 ;; Λ -> (Λ Λ)
@@ -8,6 +7,78 @@
   [λ-var (name : symbol)]
   [λ-fnc (name : symbol) (expr : λ)]
   [λ-app (lhs : λ) (rhs : λ)])
+
+;; Type λ-sug is taken from https://github.com/chrisstephenson/CMPE314-2016/blob/master/lambda-let-desugarer.plai
+;; Grammar
+;; Λ -> v
+;; Λ -> (Λ Λ)
+;; Λ -> (λ v Λ)
+;; Λ -> LET {(v Λ)} Λ
+(define-type λ-sug
+  [λ-sug-var (id : symbol)]
+  [λ-sug-fnc (name : symbol) (expr : λ-sug)]
+  [λ-sug-app (lhs : λ-sug) (rhs : λ-sug)]
+  [λ-sug-LET (let-bindings : (listof let-binding)) (let-body : λ-sug)]
+  )
+
+;; Type let-binding is taken from https://github.com/chrisstephenson/CMPE314-2016/blob/master/lambda-let-desugarer.plai
+;; let-binding : symbol λ-sug
+(define-type let-binding
+  [let-binding-data (name : symbol) (expr : λ-sug)])
+
+;; Function parse-let-binding is taken from https://github.com/chrisstephenson/CMPE314-2016/blob/master/lambda-let-desugarer.plai
+;; Creates a let-binding from an s-expression
+(define (parse-let-binding [s : s-expression]) : let-binding
+  (let ((let-binding (s-exp->list s)))
+    (let-binding-data (s-exp->symbol (first let-binding)) (parseSug (second let-binding)))))
+
+;; Function parse-let-binding is taken from https://github.com/chrisstephenson/CMPE314-2016/blob/master/lambda-let-desugarer.plai
+;; parseSug s-expression -> lambda-sugared
+;; Converts a quoted s expression into the equivalent lambda-sugared form
+;; Examples
+;; parseSug '(LET ((a (b c))) x) -> λ-sug-LET (list (let-binding-data 'a (λ-sug-app (λ-sug-var 'b) (λ-sug-var 'c)))) (λ-sug-var 'x)
+;; parseSug '(LET ((a b) (c d)) x) -> λ-sug-LET (list (let-binding-data 'a (λ-sug-var 'b)) (let-binding-data 'c (λ-sug-var 'd))) (λ-sug-var 'x)
+;; parseSug '(LET ((a b) (a d)) x) -> λ-sug-LET (list (let-binding-data 'a (λ-sug-var 'b)) (let-binding-data 'a (λ-sug-var 'd))) (λ-sug-var 'x)
+(define (parseSug [s : s-expression]) : λ-sug
+  (cond
+    [(s-exp-symbol? s) (λ-sug-var (s-exp->symbol s))]
+    [(s-exp-list? s)
+     (let ([sl (s-exp->list s)])
+       (cond
+         [(and (= (length sl) 3) (symbol=? (s-exp->symbol (first sl)) 'λ))
+           (λ-sug-fnc (s-exp->symbol (second sl)) (parseSug (third sl)))]
+         [(and (= (length sl) 3) (symbol=? (s-exp->symbol (first sl)) 'LET))
+           (λ-sug-LET (map parse-let-binding (s-exp->list (second sl))) (parseSug (third sl)))]
+         [(= (length sl) 2)
+          (λ-sug-app (parseSug (first sl)) (parseSug (second sl)))]           
+         [else (error 'parse (string-append "invalid list input" (s-exp->string s)))]))]
+    [else (error 'parse (string-append "invalid input" (s-exp->string s)))]))
+
+;; Function desugar-let is taken from https://github.com/chrisstephenson/CMPE314-2016/blob/master/lambda-let-desugarer.plai
+;; desugar-let : let-binding -> λ
+;; Helper method of desugar for LET cases.
+;; Examples
+;; (let-binding-data 'a (λ-sug-var 'b)) (λ-var 'x) -> λ-app (λ-fnc 'a (λ-var 'x)) (λ-var 'b)
+;; (let-binding-data 'a (λ-sug-var 'b)) (λ-app (λ-var 'x) (λ-var 'y)) -> λ-app (λ-fnc 'a (λ-app (λ-var 'x) (λ-var 'y))) (λ-var 'b)
+;; (let-binding-data 'a (λ-sug-app (λ-sug-var 'b) (λ-sug-var 'c)) (λ-var 'x)) -> λ-app (λ-fnc 'a (λ-var 'x)) (λ-app (λ-var 'b) (λ-var 'c))
+(define (desugar-let [lb : let-binding] [body : λ]) : λ
+  (type-case let-binding lb
+    [let-binding-data (name expr) (λ-app (λ-fnc name body) (desugar expr))]))
+
+;; Function desugar is taken from https://github.com/chrisstephenson/CMPE314-2016/blob/master/lambda-let-desugarer.plai
+;; Transforms a sugared λ expression to λ expression
+;; Only in the LET case the result differs. See function desugar-let
+;; Examples
+;; (λ-sug-var 'x) -> (λ-var 'x)
+;; (λ-sug-fnc 'x (λ-sug-var 'x)) -> (λ-fnc 'x (λ-var 'x))
+;; (λ-sug-app (λ-sug-var 'x) (λ-sug-var 'x)) -> (λ-app (λ-var 'x) (λ-var 'x)
+;; See desugar-let examples for LET case
+(define (desugar [sugared-expr : λ-sug]) : λ
+ (type-case λ-sug sugared-expr
+    [λ-sug-var (id) (λ-var id)]
+    [λ-sug-fnc (name expr) (λ-fnc name (desugar expr))]
+    [λ-sug-app (lhs rhs) (λ-app (desugar lhs) (desugar rhs))]
+    [λ-sug-LET (let-bindings let-body) (foldr desugar-let (desugar let-body) let-bindings)]))
 
 ;; parse : s-expression -> λ
 ;; Examples
@@ -37,6 +108,7 @@
          [else (λ-app (parse (first sl)) (parse (second sl)))])
        )]
     [else (error 'parse "Wrong input.")]))
+
 ;; Parse Tests
 (test (parse (symbol->s-exp 'x)) (λ-var 'x))
 (test (parse '(x y)) (λ-app (λ-var 'x) (λ-var 'y)))
@@ -254,6 +326,18 @@
 (test (betaReduction (λ-app (λ-fnc 'x (λ-app (λ-var 'x) (λ-var 'x))) (λ-app (λ-var 'y) (λ-var 'y)))) (λ-app (λ-app (λ-var 'y) (λ-var 'y)) (λ-app (λ-var 'y) (λ-var 'y))))
 (test (betaReduction (λ-app (λ-fnc 'x (λ-app (λ-var 'x) (λ-var 'a))) (λ-app (λ-var 'y) (λ-var 'y)))) (λ-app (λ-app (λ-var 'y) (λ-var 'y)) (λ-var 'a)))
 
+(test (parseSug '(LET ((a (b c))) x)) (λ-sug-LET (list (let-binding-data 'a (λ-sug-app (λ-sug-var 'b) (λ-sug-var 'c)))) (λ-sug-var 'x)))
+(test (parseSug '(LET ((a b) (c d)) x)) (λ-sug-LET (list (let-binding-data 'a (λ-sug-var 'b)) (let-binding-data 'c (λ-sug-var 'd))) (λ-sug-var 'x)))
+(test (parseSug '(LET ((a b) (a d)) x)) (λ-sug-LET (list (let-binding-data 'a (λ-sug-var 'b)) (let-binding-data 'a (λ-sug-var 'd))) (λ-sug-var 'x)))
+
+(test (desugar-let (let-binding-data 'a (λ-sug-var 'b)) (λ-var 'x)) (λ-app (λ-fnc 'a (λ-var 'x)) (λ-var 'b)))
+(test (desugar-let (let-binding-data 'a (λ-sug-var 'b)) (λ-app (λ-var 'x) (λ-var 'y))) (λ-app (λ-fnc 'a (λ-app (λ-var 'x) (λ-var 'y))) (λ-var 'b)))
+(test (desugar-let (let-binding-data 'a (λ-sug-app (λ-sug-var 'b) (λ-sug-var 'c))) (λ-var 'x)) (λ-app (λ-fnc 'a (λ-var 'x)) (λ-app (λ-var 'b) (λ-var 'c))))
+
+(test (desugar (λ-sug-var 'x)) (λ-var 'x))
+(test (desugar (λ-sug-fnc 'x (λ-sug-var 'x))) (λ-fnc 'x (λ-var 'x)))
+(test (desugar (λ-sug-app (λ-sug-var 'x) (λ-sug-var 'x))) (λ-app (λ-var 'x) (λ-var 'x)))
+
 ;; Tests - Quiz 5 / Q100
 (test (getFreeVariables (parse '(λ x (λ y (λ z ((λ x (y y)) (λ y (x x)))))))) (list ))
 (test (getFreeVariables (parse '((λ b b) b))) (list 'b))
@@ -270,3 +354,12 @@
 (test (getFreeVariables (parse '(λ a a))) (list ))
 (test (getFreeVariables (parse '(λ x (λ y (y y))))) (list ))
 (test (getFreeVariables (parse '(λ a b))) (list 'b))
+
+;; Following test are taken from https://github.com/chrisstephenson/CMPE314-2016/blob/master/lambda-let-desugarer.plai
+(test (unparse (desugar (parseSug '(LET ((a b)) x)))) '((λ a x) b))
+(test (unparse (desugar (parseSug '(LET ((a b) (c d)) x)))) '((λ a ((λ c x) d)) b))
+(test (unparse (desugar (parseSug '(LET ((p q) (ADD (λ n (λ m (λ f (λ x ((m f) ((n f) x)))))))) (λ p ((ADD p)p))))))
+      '((λ p ((λ ADD (λ p ((ADD p) p))) (λ n (λ m (λ f (λ x ((m f) ((n f) x)))))))) q))
+
+
+;; Taken codes are mostly translated to this existing language.
