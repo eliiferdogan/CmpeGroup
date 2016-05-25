@@ -18,6 +18,7 @@
   [λ-sug-var (id : symbol)]
   [λ-sug-fnc (name : symbol) (expr : λ-sug)]
   [λ-sug-app (lhs : λ-sug) (rhs : λ-sug)]
+  [λ-sug-mv-app (lhs : λ-sug) (rhs : (listof λ-sug))]
   [λ-sug-LET (let-bindings : (listof let-binding)) (let-body : λ-sug)]
   )
 
@@ -39,19 +40,23 @@
 ;; parseSug '(LET ((a (b c))) x) -> λ-sug-LET (list (let-binding-data 'a (λ-sug-app (λ-sug-var 'b) (λ-sug-var 'c)))) (λ-sug-var 'x)
 ;; parseSug '(LET ((a b) (c d)) x) -> λ-sug-LET (list (let-binding-data 'a (λ-sug-var 'b)) (let-binding-data 'c (λ-sug-var 'd))) (λ-sug-var 'x)
 ;; parseSug '(LET ((a b) (a d)) x) -> λ-sug-LET (list (let-binding-data 'a (λ-sug-var 'b)) (let-binding-data 'a (λ-sug-var 'd))) (λ-sug-var 'x)
+;; parseSug '(x y z) -> λ-sug-app (λ-sug-var 'x) (λ-sug-app (λ-sug-var 'y) (λ-sug-var 'z))
+;; parseSug '(x y z d) -> λ-sug-app (λ-sug-var 'x) (λ-sug-app (λ-sug-var 'y) (λ-sug-app (λ-sug-var 'z) (λ-sug-var 'd)))
 (define (parseSug [s : s-expression]) : λ-sug
   (cond
     [(s-exp-symbol? s) (λ-sug-var (s-exp->symbol s))]
     [(s-exp-list? s)
      (let ([sl (s-exp->list s)])
        (cond
-         [(and (= (length sl) 3) (symbol=? (s-exp->symbol (first sl)) 'λ))
-           (λ-sug-fnc (s-exp->symbol (second sl)) (parseSug (third sl)))]
-         [(and (= (length sl) 3) (symbol=? (s-exp->symbol (first sl)) 'LET))
-           (λ-sug-LET (map parse-let-binding (s-exp->list (second sl))) (parseSug (third sl)))]
+         [(= (length sl) 3)
+           (cond
+             [(symbol=? (s-exp->symbol (first sl)) 'λ) (λ-sug-fnc (s-exp->symbol (second sl)) (parseSug (third sl)))]
+             [(symbol=? (s-exp->symbol (first sl)) 'LET) (λ-sug-LET (map parse-let-binding (s-exp->list (second sl))) (parseSug (third sl)))]
+             [else (λ-sug-app (parseSug (first sl)) (λ-sug-app (parseSug (second sl)) (parseSug (third sl))))])]
          [(= (length sl) 2)
-          (λ-sug-app (parseSug (first sl)) (parseSug (second sl)))]           
-         [else (error 'parse (string-append "invalid list input" (s-exp->string s)))]))]
+          (λ-sug-app (parseSug (first sl)) (parseSug (second sl)))]
+         [(> (length sl) 3) (λ-sug-app (parseSug (first sl)) (parseSug (list->s-exp (rest sl))))]
+         [else (error 'parse "invalid list input")]))]
     [else (error 'parse (string-append "invalid input" (s-exp->string s)))]))
 
 ;; Function desugar-let is taken from https://github.com/chrisstephenson/CMPE314-2016/blob/master/lambda-let-desugarer.plai
@@ -72,12 +77,16 @@
 ;; (λ-sug-var 'x) -> (λ-var 'x)
 ;; (λ-sug-fnc 'x (λ-sug-var 'x)) -> (λ-fnc 'x (λ-var 'x))
 ;; (λ-sug-app (λ-sug-var 'x) (λ-sug-var 'x)) -> (λ-app (λ-var 'x) (λ-var 'x)
+;; (λ-sug-mv-app (λ-sug-fnc 'x (λ-sug-app (λ-sug-var 'x) (λ-sug-var 'x))) -> (λ-app (λ-app (λ-fnc 'x (λ-app (λ-var 'x) (λ-var 'x))) (λ-var 'y)) (λ-var 'z))
 ;; See desugar-let examples for LET case
 (define (desugar [sugared-expr : λ-sug]) : λ
  (type-case λ-sug sugared-expr
     [λ-sug-var (id) (λ-var id)]
     [λ-sug-fnc (name expr) (λ-fnc name (desugar expr))]
     [λ-sug-app (lhs rhs) (λ-app (desugar lhs) (desugar rhs))]
+    [λ-sug-mv-app (lhs rhs) (cond
+                              [(empty? rhs) (desugar lhs)]
+                              [else (desugar (λ-sug-mv-app (λ-sug-app lhs (first rhs)) (rest rhs)))])]
     [λ-sug-LET (let-bindings let-body) (foldr desugar-let (desugar let-body) let-bindings)]))
 
 ;; parse : s-expression -> λ
@@ -329,11 +338,13 @@
 (test (parseSug '(LET ((a (b c))) x)) (λ-sug-LET (list (let-binding-data 'a (λ-sug-app (λ-sug-var 'b) (λ-sug-var 'c)))) (λ-sug-var 'x)))
 (test (parseSug '(LET ((a b) (c d)) x)) (λ-sug-LET (list (let-binding-data 'a (λ-sug-var 'b)) (let-binding-data 'c (λ-sug-var 'd))) (λ-sug-var 'x)))
 (test (parseSug '(LET ((a b) (a d)) x)) (λ-sug-LET (list (let-binding-data 'a (λ-sug-var 'b)) (let-binding-data 'a (λ-sug-var 'd))) (λ-sug-var 'x)))
+(test (parseSug '(x y z)) (λ-sug-app (λ-sug-var 'x) (λ-sug-app (λ-sug-var 'y) (λ-sug-var 'z))))
+(test (parseSug '(x y z d)) (λ-sug-app (λ-sug-var 'x) (λ-sug-app (λ-sug-var 'y) (λ-sug-app (λ-sug-var 'z) (λ-sug-var 'd)))))
 
 (test (desugar-let (let-binding-data 'a (λ-sug-var 'b)) (λ-var 'x)) (λ-app (λ-fnc 'a (λ-var 'x)) (λ-var 'b)))
 (test (desugar-let (let-binding-data 'a (λ-sug-var 'b)) (λ-app (λ-var 'x) (λ-var 'y))) (λ-app (λ-fnc 'a (λ-app (λ-var 'x) (λ-var 'y))) (λ-var 'b)))
 (test (desugar-let (let-binding-data 'a (λ-sug-app (λ-sug-var 'b) (λ-sug-var 'c))) (λ-var 'x)) (λ-app (λ-fnc 'a (λ-var 'x)) (λ-app (λ-var 'b) (λ-var 'c))))
-
+(test (desugar (λ-sug-mv-app (λ-sug-fnc 'x (λ-sug-app (λ-sug-var 'x) (λ-sug-var 'x))) (list (λ-sug-var 'y) (λ-sug-var 'z)))) (λ-app (λ-app (λ-fnc 'x (λ-app (λ-var 'x) (λ-var 'x))) (λ-var 'y)) (λ-var 'z)))
 (test (desugar (λ-sug-var 'x)) (λ-var 'x))
 (test (desugar (λ-sug-fnc 'x (λ-sug-var 'x))) (λ-fnc 'x (λ-var 'x)))
 (test (desugar (λ-sug-app (λ-sug-var 'x) (λ-sug-var 'x))) (λ-app (λ-var 'x) (λ-var 'x)))
@@ -355,6 +366,8 @@
 (test (getFreeVariables (parse '(λ x (λ y (y y))))) (list ))
 (test (getFreeVariables (parse '(λ a b))) (list 'b))
 
+(test (unparse (desugar (parseSug '(x y z )))) '(x (y z)))
+(test (unparse (desugar (parseSug '(x y z d)))) '(x (y (z d))))
 ;; Following test are taken from https://github.com/chrisstephenson/CMPE314-2016/blob/master/lambda-let-desugarer.plai
 (test (unparse (desugar (parseSug '(LET ((a b)) x)))) '((λ a x) b))
 (test (unparse (desugar (parseSug '(LET ((a b) (c d)) x)))) '((λ a ((λ c x) d)) b))
